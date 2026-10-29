@@ -6,7 +6,7 @@ from conftest import atom, day, hour, page, timetable_data
 from rozvrh_mcp.cache import TTLCache
 from rozvrh_mcp.config import Settings
 from rozvrh_mcp.errors import NotFoundError
-from rozvrh_mcp.models import Day, Entity, Hour, Lesson, Timetable
+from rozvrh_mcp.models import Absence, Day, Duty, Entity, Hour, Lesson, Timetable
 from rozvrh_mcp.service import (
     TimetableService,
     compute_conflicts,
@@ -189,3 +189,20 @@ async def test_daily_changes_rejects_other_dates(service):
         await service.daily_changes("2000-01-01")
     with pytest.raises(Exception, match="YYYY-MM-DD"):
         await service.daily_changes("yesterday")
+
+
+def test_compute_free_slots_with_absences_and_duties():
+    t = tt([lesson(0, 1)])
+    t.days[0].absences.append(Absence(day=0, day_abbrev="po", periods=[2, 3], start="8:55", end="10:45", kind="EXU", kind_name="exkurse"))
+    t.days[1].absences.append(Absence(day=1, day_abbrev="út", periods=[1], start="8:00", end="8:45", kind="DOZ", kind_name="dozor", supervision=True))
+    t.days[1].duties.append(Duty(day=1, day_abbrev="út", name="Suplovací pohotovost", abbrev="Poh", start="8:55", end="9:40", kind="standby", period=2))
+    t.days[1].duties.append(Duty(day=1, day_abbrev="út", name="Jídelna", abbrev="JIDE", start="10:00", end="10:45", kind="duty", period=3))
+    t.days[1].duties.append(Duty(day=1, day_abbrev="út", name="chodba", abbrev="ch", start="9:40", end="10:00", kind="break_duty", after_period=2))
+    days = compute_free_slots(t)
+    assert days[0]["busy_periods"] == [1] and days[0]["absent_periods"] == [2, 3] and days[0]["free_periods"] == [0]
+    assert days[0]["absences"][0]["kind"] == "EXU"
+    assert days[1]["duty_periods"] == [1, 3]  # supervision absence + canteen
+    assert days[1]["standby_periods"] == [2]
+    assert days[1]["free_periods"] == [0]
+    assert "absent_periods" not in days[1]
+    assert len(days[1]["duties"]) == 3

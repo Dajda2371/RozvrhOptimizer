@@ -262,3 +262,44 @@ def test_real_teacher_and_room_views():
     assert joined.teacher == "Ing. Martina Wohlrathová" and joined.room == "1101"
     four = next(l for l in room.lessons if len(l.classes) == 4)
     assert four.classes == ["4.F", "4.G", "4.K", "4.L"]
+
+
+def test_real_teacher_duties():
+    tt = parse_timetable(load_fixture("teacher_actual_duties.html"), kind="teacher", id="UZZVE", name="Bali-hudák Ján", variant="actual")
+    duties = tt.duties
+    assert [(d.day, d.period, d.name, d.kind) for d in duties] == [
+        (2, 1, "Suplovací pohotovost", "standby"),
+        (3, 4, "Jídelna", "duty"),
+    ]
+    assert duties[0].start == "8:00" and duties[0].end == "8:45" and duties[0].abbrev == "Poh"
+    assert tt.absences == []
+    d = tt.to_dict()
+    assert "absences" not in d and len(d["duties"]) == 2 and d["duties"][0]["kind"] == "standby"
+
+
+def test_real_teacher_absence():
+    tt = parse_timetable(load_fixture("teacher_next_absence.html"), kind="teacher", id="UAYPM", name="Bažantová Sylva", variant="next")
+    assert len(tt.absences) == 1
+    a = tt.absences[0]
+    assert (a.day, a.kind, a.kind_name, a.supervision) == (0, "EXU", "exkurse učitel", False)
+    assert (a.start, a.end) == ("8:00", "16:05")
+    assert a.periods == list(range(1, 10))  # 8:00 - 16:05 covers periods 1..9
+    monday = tt.days[0].lessons
+    covered = [l for l in monday if l.absence]
+    assert covered and all(l.absence == "EXU" for l in covered)
+    assert any(not l.active and l.change_info.startswith("Zrušeno") for l in monday)
+    standby = [d for d in tt.duties if d.kind == "standby"]
+    assert [(d.day, d.period) for d in standby] == [(3, 4)]
+    full = tt.to_dict(compact=False)
+    assert full["days"][0]["absences"][0]["raw"]["AbsentKind"]["Abbrev"] == "EXU"
+
+
+def test_pause_guard_and_supervision_absence():
+    data = timetable_data([day("po", [hour("8:00", [atom()])])])
+    data["Days"][0]["PauseGuards"] = [{"Name": "3. pavilon", "Abbrev": "3p", "Begin": "08:45:00", "End": "08:55:00", "IsPause": True}]
+    data["Days"][0]["HourGuards"] = [{"Name": "Dozor na chodbě", "Abbrev": "DOZ", "Begin": "10:00:00", "End": "10:45:00", "IsPause": False}]
+    data["Days"][0]["Absences"] = [{"Begin": "08:55:00", "End": "10:45:00", "Start": 535, "Duration": 110, "IsSupervision": True, "AbsentKind": {"Abbrev": "DOZ", "Name": "dozor"}}]
+    tt = parse_timetable(page(data), kind="teacher", id="T", name="T", variant="actual")
+    kinds = [(d.kind, d.period, d.after_period) for d in tt.duties]
+    assert kinds == [("duty", 3, None), ("break_duty", None, 1)]
+    assert tt.absences[0].supervision is True and tt.absences[0].periods == [2, 3]

@@ -92,6 +92,14 @@ def compute_free_rooms(
 
 
 def compute_free_slots(tt: Timetable) -> list[dict[str, Any]]:
+    """Per-day availability of a teacher.
+
+    free_periods      no lesson, no absence, no duty (can be scheduled)
+    standby_periods   "suplovací pohotovost": at school with no lesson, available for substitution
+    duty_periods      at school but assigned elsewhere (dozor, jídelna, ...)
+    absent_periods    covered by an absence ("A" bar); supervision absences are listed separately
+    busy_periods      teaching (active lessons)
+    """
     periods = [h.period for h in tt.hours]
     result = []
     for day in tt.days:
@@ -99,13 +107,29 @@ def compute_free_slots(tt: Timetable) -> list[dict[str, Any]]:
         for lesson in day.lessons:
             if lesson.active:
                 busy.setdefault(lesson.period, []).append(lesson)
-        busy_periods = sorted(busy)
+        absent: set[int] = set()
+        supervising: set[int] = set()
+        for a in day.absences:
+            (supervising if a.supervision else absent).update(a.periods)
+        standby = {d.period for d in day.duties if d.kind == "standby" and d.period is not None}
+        duty = {d.period for d in day.duties if d.kind == "duty" and d.period is not None} | supervising
+        unavailable = set(busy) | absent | duty | standby
         entry: dict[str, Any] = {
             "day": day.day,
             "day_abbrev": day.day_abbrev,
-            "free_periods": [p for p in periods if p not in busy] if periods else [],
-            "busy_periods": busy_periods,
+            "free_periods": [p for p in periods if p not in unavailable] if periods else [],
+            "busy_periods": sorted(busy),
         }
+        if standby:
+            entry["standby_periods"] = sorted(standby)
+        if duty:
+            entry["duty_periods"] = sorted(duty)
+        if absent:
+            entry["absent_periods"] = sorted(absent)
+        if day.absences:
+            entry["absences"] = [a.to_dict() for a in day.absences]
+        if day.duties:
+            entry["duties"] = [d.to_dict() for d in day.duties]
         partial = {
             p: sorted({l.cycle for l in ls if l.cycle})
             for p, ls in busy.items()

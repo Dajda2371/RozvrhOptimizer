@@ -29,6 +29,11 @@ Days are 0 = Monday .. 4 = Friday; periods are the school's own numbering (often
 with start/end times listed under "hours". Lessons may carry "cycle": "odd"/"even" when they
 only happen in odd (lichý) or even (sudý) weeks. "change" marks substitutions, moved, canceled
 or removed lessons; removed/canceled lessons do not occupy the slot.
+Teacher timetables (actual/next) also carry "absences" (the "A" bar: the teacher is away, with
+kind such as "exkurse učitel"; supervision=true means dozor, present but not teaching) and
+"duties" (kind "standby" = suplovací pohotovost, at school and free to take a lesson; "duty" =
+jídelna/dozor, at school but occupied; "break_duty" = break supervision). A lesson with "absence"
+set is one where the teacher is absent and someone else covers it.
 Identifiers: every tool accepts either the Bakaláři id (e.g. "C8") or the human name
 ("1.A", "Novák Jan", "2507"). Use list_* tools to discover them and get_timetables_bulk to load
 many timetables at once. Nothing here can modify the school system."""
@@ -139,7 +144,10 @@ async def get_class_timetable(class_id: str, variant: Variant = "permanent", com
 @_tool_errors
 async def get_teacher_timetable(teacher: str, variant: Variant = "permanent", compact: bool = True) -> dict[str, Any]:
     """Timetable of one teacher (id, "Surname Firstname", or the abbreviation shown in class
-    timetables once any class timetable was fetched). Lessons carry "classes" and "groups"."""
+    timetables once any class timetable was fetched). Lessons carry "classes" and "groups".
+    Also returns "absences" (teacher away; supervision=true means dozor: present, not teaching)
+    and "duties" (standby = suplovací pohotovost, available for substitution; duty = jídelna etc.;
+    break_duty = break supervision). Use variant "actual"/"next" for those; permanent has none."""
     svc = await _ensure_service()
     return (await svc.get_timetable("teacher", teacher, variant)).to_dict(compact)
 
@@ -185,7 +193,10 @@ async def find_free_rooms(
 @mcp.tool()
 @_tool_errors
 async def get_teacher_free_slots(teacher: str, variant: Variant = "permanent") -> dict[str, Any]:
-    """Per-day free and busy periods of a teacher, including slots busy only in odd/even weeks."""
+    """Per-day availability of a teacher: free_periods (schedulable), busy_periods (teaching),
+    standby_periods (suplovací pohotovost: at school, can take a lesson), duty_periods (dozor,
+    jídelna: at school but occupied), absent_periods (away), plus slots busy only in odd/even weeks.
+    Use variant "actual" or "next" to see absences and duties."""
     svc = await _ensure_service()
     return await svc.teacher_free_slots(teacher, variant)
 

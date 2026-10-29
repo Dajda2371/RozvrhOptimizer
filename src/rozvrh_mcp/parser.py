@@ -24,9 +24,11 @@ from bs4 import BeautifulSoup, Tag
 from .errors import LoginError, ParseError, TimetableUnavailableError
 from .models import (
     DAY_ABBREVS,
+    Absence,
     AbsentTeacher,
     DailyChanges,
     Day,
+    Duty,
     Entity,
     Hour,
     Kind,
@@ -245,6 +247,7 @@ def _lesson_from_atom(
         theme=_clean(atom.get("Theme")),
         notice=_clean(atom.get("Notice")),
         ident_code=_clean(atom.get("IdentCode")),
+        absence=(_clean(atom.get("AtomAbsenceText")) or _clean(atom.get("AbsentInfo"))) if atom.get("HasAbsent") else None,
         raw=raw,
     )
 
@@ -265,6 +268,79 @@ def _hours_from_json(data: dict[str, Any]) -> tuple[list[Hour], dict[int, int]]:
         if mins is not None:
             by_minutes.setdefault(mins, period)
     return hours, by_minutes
+
+
+def _periods_between(hours: list[Hour], start_min: int | None, end_min: int | None) -> list[int]:
+    """Periods whose time range overlaps [start_min, end_min)."""
+    if start_min is None or end_min is None:
+        return []
+    found = []
+    for h in hours:
+        hs, he = _minutes(h.start), _minutes(h.end)
+        if hs is None or he is None:
+            continue
+        if hs < end_min and he > start_min:
+            found.append(h.period)
+    return found
+
+
+STANDBY_WORDS = ("pohotovost",)
+
+
+def _duty_kind(name: str, is_pause: bool) -> str:
+    if is_pause:
+        return "break_duty"
+    lowered = name.lower()
+    if any(w in lowered for w in STANDBY_WORDS):
+        return "standby"
+    return "duty"
+
+
+def _absence_from_json(item: dict[str, Any], hours: list[Hour], *, day: int, day_abbrev: str) -> Absence:
+    kind = item.get("AbsentKind") if isinstance(item.get("AbsentKind"), dict) else {}
+    start_min = item.get("Start") if isinstance(item.get("Start"), int) else _minutes(item.get("Begin"))
+    end_min = None
+    if start_min is not None and isinstance(item.get("Duration"), int):
+        end_min = start_min + item["Duration"]
+    if end_min is None:
+        end_min = _minutes(item.get("End"))
+    return Absence(
+        day=day,
+        day_abbrev=day_abbrev,
+        periods=_periods_between(hours, start_min, end_min),
+        start=_hhmm(item.get("Begin")) or "",
+        end=_hhmm(item.get("End")) or "",
+        kind=_clean(kind.get("Abbrev")),
+        kind_name=_clean(kind.get("Name")),
+        supervision=bool(item.get("IsSupervision")),
+        raw={k: v for k, v in item.items() if k not in ("CssX", "CssWidth")},
+    )
+
+
+def _duty_from_json(item: dict[str, Any], hours: list[Hour], by_minutes: dict[int, int], *, day: int, day_abbrev: str) -> Duty:
+    name = _clean(item.get("Name")) or _clean(item.get("Abbrev")) or "?"
+    is_pause = bool(item.get("IsPause"))
+    start_min, end_min = _minutes(item.get("Begin")), _minutes(item.get("End"))
+    period = None if is_pause else by_minutes.get(start_min) if start_min is not None else None
+    if period is None and not is_pause:
+        overlapping = _periods_between(hours, start_min, end_min)
+        period = overlapping[0] if overlapping else None
+    after_period = None
+    if is_pause and start_min is not None:
+        before = [h.period for h in hours if (_minutes(h.end) or 0) <= start_min]
+        after_period = before[-1] if before else None
+    return Duty(
+        day=day,
+        day_abbrev=day_abbrev,
+        name=name,
+        abbrev=_clean(item.get("Abbrev")),
+        start=_hhmm(item.get("Begin")) or "",
+        end=_hhmm(item.get("End")) or "",
+        kind=_duty_kind(name, is_pause),  # type: ignore[arg-type]
+        period=period,
+        after_period=after_period,
+        raw={k: v for k, v in item.items() if k not in ("CssX", "CssWidth", "Day")},
+    )
 
 
 def _period_for_hour(hour: dict[str, Any], by_minutes: dict[int, int], fallback: int) -> int:
@@ -308,6 +384,13 @@ def timetable_from_json(
                 day.lessons.append(
                     _lesson_from_atom(atom, day=day_index, day_abbrev=abbrev, period=period, kind=kind, entity_name=name)
                 )
+        for item in raw_day.get("Absences") or []:
+            if isinstance(item, dict):
+                day.absences.append(_absence_from_json(item, hours, day=day_index, day_abbrev=abbrev))
+        for key in ("HourGuards", "PauseGuards", "GeneralGuards"):
+            for item in raw_day.get(key) or []:
+                if isinstance(item, dict):
+                    day.duties.append(_duty_from_json(item, hours, by_minutes, day=day_index, day_abbrev=abbrev))
         days.append(day)
     return Timetable(
         kind=kind,
