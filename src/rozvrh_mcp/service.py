@@ -98,14 +98,14 @@ def compute_free_slots(tt: Timetable) -> list[dict[str, Any]]:
     standby_periods   "suplovací pohotovost": at school with no lesson, available for substitution
     duty_periods      at school but assigned elsewhere (dozor, jídelna, ...)
     absent_periods    covered by an absence ("A" bar); supervision absences are listed separately
-    busy_periods      teaching (active lessons)
+    busy_periods      teaching (active lessons not covered by someone else during an absence)
     """
     periods = [h.period for h in tt.hours]
     result = []
     for day in tt.days:
         busy: dict[int, list[Lesson]] = {}
         for lesson in day.lessons:
-            if lesson.active:
+            if lesson.active and not lesson.absence:  # a covered lesson does not occupy the absent teacher
                 busy.setdefault(lesson.period, []).append(lesson)
         absent: set[int] = set()
         supervising: set[int] = set()

@@ -99,6 +99,20 @@ Resources: `bakalari://classes`, `bakalari://teachers`, `bakalari://rooms`,
 * `change`: absent for unchanged lessons; `substitution`, `moved`, `changed`, `canceled`,
   `removed`. Canceled/removed lessons do not occupy the slot.
 * Teacher timetables list `classes`/`groups` instead of a teacher; room timetables list both.
+* `absence` on a lesson: the teacher is absent and the lesson is covered by someone else.
+
+### Teacher absences and duties
+
+Teacher timetables in the `actual`/`next` variants also return:
+
+* `absences`: the "A" bar, e.g. `{"day": 0, "periods": [1, ..., 9], "kind": "EXU", "kind_name": "exkurse učitel", "supervision": false}`.
+  `supervision: true` is *dozor*: the teacher is at school but not teaching.
+* `duties`: non-teaching assignments with `kind` `standby` (*suplovací pohotovost*: at school and
+  free to take a lesson), `duty` (*jídelna* and similar: at school but occupied) or `break_duty`
+  (break supervision, `after_period` instead of `period`).
+
+`get_teacher_free_slots` folds all of this into `free_periods`, `standby_periods`,
+`duty_periods`, `absent_periods` and `busy_periods` per day.
 
 ## Development
 

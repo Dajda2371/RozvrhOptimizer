@@ -192,7 +192,7 @@ async def test_daily_changes_rejects_other_dates(service):
 
 
 def test_compute_free_slots_with_absences_and_duties():
-    t = tt([lesson(0, 1)])
+    t = tt([lesson(0, 1), lesson(0, 2, absence="EXU")])
     t.days[0].absences.append(Absence(day=0, day_abbrev="po", periods=[2, 3], start="8:55", end="10:45", kind="EXU", kind_name="exkurse"))
     t.days[1].absences.append(Absence(day=1, day_abbrev="út", periods=[1], start="8:00", end="8:45", kind="DOZ", kind_name="dozor", supervision=True))
     t.days[1].duties.append(Duty(day=1, day_abbrev="út", name="Suplovací pohotovost", abbrev="Poh", start="8:55", end="9:40", kind="standby", period=2))
