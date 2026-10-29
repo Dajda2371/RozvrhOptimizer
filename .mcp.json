@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "rozvrh": {
+      "command": "uv",
+      "args": ["--directory", ".", "run", "rozvrh-mcp"]
+    }
+  }
+}
