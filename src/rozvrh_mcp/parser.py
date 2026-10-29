@@ -206,7 +206,7 @@ def _lesson_from_atom(
     entity_name: str,
 ) -> Lesson:
     tooltip = _parse_tooltip(atom)
-    groups = _split_groups(atom.get("GroupsNames") or tooltip.get("group"))
+    groups = _split_groups(atom["GroupsNames"] if "GroupsNames" in atom else tooltip.get("group"))
     if kind == "class":
         classes = [entity_name]
     else:
