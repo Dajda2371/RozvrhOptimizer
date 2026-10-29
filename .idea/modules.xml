@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/rozvrhoptimizer.iml" filepath="$PROJECT_DIR$/.idea/rozvrhoptimizer.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/rozvrh-mcp.iml" filepath="$PROJECT_DIR$/.idea/rozvrh-mcp.iml" />
     </modules>
   </component>
 </project>
