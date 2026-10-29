@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import date
-
 import httpx
 import pytest
 import respx
@@ -110,14 +108,9 @@ async def test_404_is_not_found():
 
 
 @respx.mock
-async def test_changes_page_postback_for_other_date():
+async def test_changes_page_is_fetched_without_login():
     html = load_fixture("zmeny.html")
-    respx.get(f"{BASE}/next/zmeny.aspx").mock(return_value=httpx.Response(200, text=html))
-    post = respx.post(f"{BASE}/next/zmeny.aspx").mock(return_value=httpx.Response(200, text=html.replace("29. 10.", "30. 10.")))
+    route = respx.get(f"{BASE}/next/zmeny.aspx").mock(return_value=httpx.Response(200, text=html))
     async with BakalariClient(settings()) as client:
-        same = await client.fetch_changes(date(2026, 10, 29))
-        assert "29. 10." in same and post.call_count == 0
-        other = await client.fetch_changes(date(2026, 10, 30))
-        assert "30. 10." in other and post.call_count == 1
-        body = httpx.QueryParams(post.calls[0].request.content.decode())
-        assert body["DateEdit"] in ("10/30/2026", "30.10.2026") and body["__VIEWSTATE"]  # mirrors the page format
+        assert "29. 10." in await client.fetch_changes()
+    assert route.call_count == 1

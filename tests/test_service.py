@@ -182,3 +182,10 @@ async def test_info_and_refresh_scopes(service):
     assert service.refresh("lists") == 1
     with pytest.raises(Exception):
         service.refresh("bogus")
+
+
+async def test_daily_changes_rejects_other_dates(service):
+    with pytest.raises(Exception, match="only show today"):
+        await service.daily_changes("2000-01-01")
+    with pytest.raises(Exception, match="YYYY-MM-DD"):
+        await service.daily_changes("yesterday")

@@ -205,9 +205,10 @@ async def find_conflicts(
 @mcp.tool()
 @_tool_errors
 async def get_daily_changes(date: str | None = None) -> dict[str, Any]:
-    """Public daily changes page (Změny v rozvrhu) for one day: absent classes, absent teachers with
-    their absent periods, rooms out of service, timetable changes and supervision duties.
-    date: "YYYY-MM-DD"; default today."""
+    """Today's public daily changes page (Změny v rozvrhu): absent classes, absent teachers with their
+    absent periods, rooms out of service, timetable changes and supervision duties.
+    date: optional "YYYY-MM-DD"; only today is available, other dates return an error (use the
+    "actual"/"next" timetable variants for substitutions on other days)."""
     svc = await _ensure_service()
     return (await svc.daily_changes(date)).to_dict()
 

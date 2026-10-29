@@ -329,18 +329,23 @@ class TimetableService:
         return {"kind": kind, "variant": variant, "conflicts": found, "checked": len(bulk.timetables), "errors": bulk.errors}
 
     async def daily_changes(self, day: str | None = None) -> DailyChanges:
-        target: date_type | None = None
+        """Today's public changes page. Other dates are not supported (see BakalariClient.fetch_changes)."""
         if day:
             try:
                 target = datetime.strptime(day.strip(), "%Y-%m-%d").date()
             except ValueError as exc:
                 raise RozvrhError(f"date must be YYYY-MM-DD, got {day!r}") from exc
+            if target != date_type.today():
+                raise RozvrhError(
+                    "get_daily_changes can only show today's changes; the Bakaláři changes page does not "
+                    "expose other dates to a plain HTTP client. Use get_class_timetable(variant='actual'/'next') "
+                    "for substitutions on other days."
+                )
 
         async def fetch() -> DailyChanges:
-            html = await self.client.fetch_changes(target)
-            return parse_changes_page(html)
+            return parse_changes_page(await self.client.fetch_changes())
 
-        return await self.cache.get_or_fetch(("changes", target.isoformat() if target else "today"), fetch)
+        return await self.cache.get_or_fetch(("changes", "today"), fetch)
 
     # ------------------------------------------------------------------ housekeeping
 

@@ -1,14 +1,13 @@
 """HTTP access to a Bakaláři instance: fetch public timetable pages, log in when required.
 
-Only GET requests are made against the timetable pages. The login form POST and the
-daily-changes date postback are the only POSTs, and neither modifies school data.
+Only GET requests are made against the timetable pages. The login form POST
+is the only POST, and it does not modify school data.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import date as date_type
 from typing import Any
 from urllib.parse import quote, urljoin
 
@@ -18,7 +17,7 @@ from bs4 import BeautifulSoup
 from .config import Settings
 from .errors import LoginError, NotFoundError, UpstreamError
 from .models import KIND_PATH, VARIANT_PATH, Kind, Variant
-from .parser import extract_form_state, is_login_page
+from .parser import is_login_page
 
 log = logging.getLogger("rozvrh_mcp.client")
 
@@ -68,19 +67,13 @@ class BakalariClient:
     async def fetch_timetable(self, variant: Variant, kind: Kind, entity_id: str) -> str:
         return await self._get_html(timetable_path(variant, kind, entity_id))
 
-    async def fetch_changes(self, day: date_type | None = None) -> str:
-        """Daily changes page; `day` switches the date through the WebForms postback."""
-        html = await self._get_html(CHANGES_PATH, require_timetable_auth=False)
-        if day is None:
-            return html
-        state = extract_form_state(html)
-        current = state.get("DateEdit", "")
-        wanted = _format_date_like(day, current)
-        if not state or wanted == current:
-            return html
-        state["DateEdit"] = wanted
-        resp = await self._request("POST", CHANGES_PATH, data=state)
-        return resp.text
+    async def fetch_changes(self) -> str:
+        """Public daily changes page for today.
+
+        The page's date picker is a DevExpress WebForms control whose postback could not be
+        replicated reliably from a plain HTTP client, so only the current day is supported.
+        """
+        return await self._get_html(CHANGES_PATH, require_timetable_auth=False)
 
     # ------------------------------------------------------------------ internals
 
@@ -183,18 +176,3 @@ def _login_error_text(html: str) -> str | None:
             if text:
                 return text
     return None
-
-
-def _format_date_like(day: date_type, sample: str) -> str:
-    """Format `day` using the same convention as the page's current DateEdit value."""
-    sample = sample.strip()
-    if "/" in sample:  # en-US style M/d/yyyy as observed ("10/29/2026")
-        parts = sample.split("/")
-        if len(parts) == 3 and len(parts[0]) == 2 and len(parts[1]) == 2:
-            return day.strftime("%m/%d/%Y")
-        return f"{day.month}/{day.day}/{day.year}"
-    if "." in sample:  # cs style d.M.yyyy
-        return f"{day.day}.{day.month}.{day.year}"
-    if "-" in sample:
-        return day.isoformat()
-    return day.strftime("%m/%d/%Y")

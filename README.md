@@ -78,7 +78,7 @@ Interactive testing: `npx @modelcontextprotocol/inspector uv run rozvrh-mcp`.
 | `find_free_rooms` | rooms without a lesson in a given day/period |
 | `get_teacher_free_slots` | per-day free and busy periods of a teacher |
 | `find_conflicts` | heuristic double-booking check for teachers or rooms |
-| `get_daily_changes` | absent classes/teachers, rooms out of service, changes and supervisions for one day |
+| `get_daily_changes` | today's absent classes/teachers, rooms out of service, changes and supervisions (today only) |
 | `get_server_info`, `refresh_cache` | diagnostics and cache control |
 
 Resources: `bakalari://classes`, `bakalari://teachers`, `bakalari://rooms`,
