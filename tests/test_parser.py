@@ -170,7 +170,7 @@ def test_classify_change(args, expected):
 def test_changes_page():
     html = load_fixture("zmeny.html")
     changes = parse_changes_page(html)
-    assert changes.date == "Thursday 29. 10."
+    assert changes.date.endswith("29. 10.")  # weekday name depends on the server locale
     assert changes.absent_classes == []
     names = [t.name for t in changes.absent_teachers]
     assert names[0] == "Egrtová Miroslava" and len(names) == 4
@@ -206,3 +206,59 @@ def test_changes_page_with_filled_sections():
 def test_changes_page_without_heading():
     with pytest.raises(ParseError):
         parse_changes_page("<html><body>nope</body></html>")
+
+
+# ----------------------------------------------------------------------------- real captured pages
+
+
+def test_real_selector_page():
+    lists = parse_selector_page(load_fixture("selector.html"))
+    assert len(lists["class"]) == 70 and len(lists["teacher"]) == 159 and len(lists["room"]) == 111
+    assert lists["class"][0].id == "C8" and lists["class"][0].name == "1.A"
+
+
+def test_real_class_permanent():
+    tt = parse_timetable(load_fixture("class_permanent.html"), kind="class", id="C8", name="1.A", variant="permanent")
+    assert tt.source == "json"
+    assert [h.period for h in tt.hours] == list(range(15))
+    assert tt.hours[1].start == "8:00" and tt.hours[1].end == "8:45"
+    assert len(tt.lessons) == 59
+    assert all(d.date is None for d in tt.days)
+    cycles = [l.cycle for l in tt.lessons if l.cycle]
+    assert cycles.count("odd") == 4 and cycles.count("even") == 4
+    first = tt.days[0].lessons[0]
+    assert (first.period, first.subject_abbrev, first.room, first.groups) == (1, "TED", "2507", ["S2"])
+    assert first.teacher == "Mgr. Bc. Pavel Petr" and first.teacher_abbrev == "PePa"
+    assert all(l.change == "none" for l in tt.lessons)
+
+
+def test_real_class_actual_and_next_changes():
+    actual = parse_timetable(load_fixture("class_actual.html"), kind="class", id="C8", name="1.A", variant="actual")
+    assert [d.date for d in actual.days] == ["26.10.", "27.10.", "28.10.", "29.10.", "30.10."]
+    assert [d.day_off for d in actual.days] == [False, False, True, True, True]
+    assert actual.days[3].day_off_name == "podzimní prázdniny"
+    removed = [l for l in actual.lessons if l.change == "removed"]
+    assert len(removed) == 2 and removed[0].change_info.startswith("Zrušeno")
+    assert not removed[0].active
+
+    nxt = parse_timetable(load_fixture("class_next.html"), kind="class", id="C8", name="1.A", variant="next")
+    kinds = [l.change for l in nxt.lessons]
+    assert kinds.count("substitution") == 4 and kinds.count("moved") == 1 and kinds.count("removed") == 1
+    moved = next(l for l in nxt.lessons if l.change == "moved")
+    assert (moved.day, moved.period, moved.subject_abbrev) == (4, 0, "MAT")
+
+
+def test_real_teacher_and_room_views():
+    teacher = parse_timetable(load_fixture("teacher_permanent.html"), kind="teacher", id="UY045", name="Ambrož Jan", variant="permanent")
+    assert len(teacher.lessons) == 4
+    assert all(l.teacher == "Ambrož Jan" and l.teacher_abbrev is None for l in teacher.lessons)
+    assert sorted({c for l in teacher.lessons for c in l.classes}) == ["MA2", "TKB2"]
+    assert [l.period for l in teacher.lessons] == [9, 10, 11, 12]
+
+    room = parse_timetable(load_fixture("room_permanent.html"), kind="room", id="ZW", name="1101", variant="permanent")
+    assert len(room.lessons) == 16
+    joined = room.days[0].lessons[0]
+    assert joined.groups == ["3.A SL", "3.B SL"] and joined.classes == ["3.A", "3.B"]
+    assert joined.teacher == "Ing. Martina Wohlrathová" and joined.room == "1101"
+    four = next(l for l in room.lessons if len(l.classes) == 4)
+    assert four.classes == ["4.F", "4.G", "4.K", "4.L"]

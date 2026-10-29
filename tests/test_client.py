@@ -120,4 +120,4 @@ async def test_changes_page_postback_for_other_date():
         other = await client.fetch_changes(date(2026, 10, 30))
         assert "30. 10." in other and post.call_count == 1
         body = httpx.QueryParams(post.calls[0].request.content.decode())
-        assert body["DateEdit"] == "10/30/2026" and body["__VIEWSTATE"]
+        assert body["DateEdit"] in ("10/30/2026", "30.10.2026") and body["__VIEWSTATE"]  # mirrors the page format

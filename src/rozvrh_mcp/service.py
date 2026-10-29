@@ -359,7 +359,6 @@ class TimetableService:
         return {
             "base_url": self.settings.base_url,
             "auth": "login" if self.settings.has_credentials else "anonymous",
-            "username": self.settings.username,
             "login_generation": self.client.login_generation,
             "requests_made": self.client.request_count,
             "cache": self.cache.stats(),
